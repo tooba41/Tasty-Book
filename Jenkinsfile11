@@ -1,1 +1,42 @@
 
+
+pipeline {
+    agent {
+        docker {
+            image 'alpine:3.20'
+            args '-u root'
+        }
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Tasty-Book Docker Pipeline Started'
+                checkout scm
+            }
+        }
+
+        stage('Verify Docker Agent') {
+            steps {
+                sh 'cat /etc/alpine-release'
+                sh 'echo "Docker build agent is working!"'
+            }
+        }
+
+        stage('Verify Project Files') {
+            steps {
+                sh 'ls -la'
+                echo 'Tasty-Book files checked successfully.'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline1 completed successfully using Docker agent!'
+        }
+        failure {
+            echo 'Pipeline1 failed. Check the Jenkins Console Output.'
+        }
+    }
+}
