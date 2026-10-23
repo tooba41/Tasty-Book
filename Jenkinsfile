@@ -1,29 +1,60 @@
-
 pipeline {
     agent any
 
     stages {
-        stage('Checkout') {
+        stage('Checkout Tasty-Book') {
             steps {
-                echo 'Tasty-Book CI/CD Pipeline Started'
                 checkout scm
+                sh 'ls -la'
             }
         }
 
-        stage('Verify Project Files') {
+        stage('Validate Docker Configuration') {
             steps {
-                sh 'ls -la'
-                echo 'Tasty-Book files checked successfully.'
+                sh 'docker compose config -q'
+            }
+        }
+
+        stage('Build Tasty-Book Image') {
+            steps {
+                sh 'docker compose build web'
+            }
+        }
+
+        stage('Deploy Application and Database') {
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'tastybook-db-password',
+                        variable: 'DB_PASSWORD'
+                    ),
+                    string(
+                        credentialsId: 'tastybook-db-root-password',
+                        variable: 'DB_ROOT_PASSWORD'
+                    )
+                ]) {
+                    sh '''
+                        docker compose up -d
+                        docker compose ps
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                sh 'docker ps'
+                sh 'curl -f http://localhost/'
             }
         }
     }
 
     post {
         success {
-            echo 'Tasty-Book pipeline completed successfully!'
+            echo 'Tasty-Book Docker deployment completed.'
         }
         failure {
-            echo 'Tasty-Book pipeline failed. Check the console output.'
+            echo 'Deployment failed. Check the Jenkins console output.'
         }
     }
 }
