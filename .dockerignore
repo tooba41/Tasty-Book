@@ -1,0 +1,8 @@
+.git
+.env
+Jenkinsfile
+Jenkinsfile11
+Jenkinsfile.backup
+db.php.backup
+*.backup
+database/

@@ -1,0 +1,36 @@
+services:
+  web:
+    build: .
+    container_name: tastybook-web
+    ports:
+      - "80:80"
+    environment:
+      DB_HOST: db
+      DB_NAME: tastybook_db
+      DB_USER: tastybook_user
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    container_name: tastybook-db
+    environment:
+      MYSQL_DATABASE: tastybook_db
+      MYSQL_USER: tastybook_user
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD}
+    volumes:
+      - tastybook-data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  tastybook-data:

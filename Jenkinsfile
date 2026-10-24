@@ -11,27 +11,31 @@ pipeline {
 
         stage('Validate Docker Configuration') {
             steps {
-                sh 'docker compose config -q'
+                withCredentials([
+                    string(credentialsId: 'tastybook-db-password', variable: 'DB_PASSWORD'),
+                    string(credentialsId: 'tastybook-db-root-password', variable: 'DB_ROOT_PASSWORD')
+                ]) {
+                    sh 'docker compose config -q'
+                }
             }
         }
 
         stage('Build Tasty-Book Image') {
             steps {
-                sh 'docker compose build web'
+                withCredentials([
+                    string(credentialsId: 'tastybook-db-password', variable: 'DB_PASSWORD'),
+                    string(credentialsId: 'tastybook-db-root-password', variable: 'DB_ROOT_PASSWORD')
+                ]) {
+                    sh 'docker compose build web'
+                }
             }
         }
 
         stage('Deploy Application and Database') {
             steps {
                 withCredentials([
-                    string(
-                        credentialsId: 'tastybook-db-password',
-                        variable: 'DB_PASSWORD'
-                    ),
-                    string(
-                        credentialsId: 'tastybook-db-root-password',
-                        variable: 'DB_ROOT_PASSWORD'
-                    )
+                    string(credentialsId: 'tastybook-db-password', variable: 'DB_PASSWORD'),
+                    string(credentialsId: 'tastybook-db-root-password', variable: 'DB_ROOT_PASSWORD')
                 ]) {
                     sh '''
                         docker compose up -d
@@ -44,7 +48,7 @@ pipeline {
         stage('Verify Deployment') {
             steps {
                 sh 'docker ps'
-                sh 'curl -f http://localhost/'
+                sh 'curl --retry 5 --retry-delay 5 --retry-connrefused -f http://localhost/'
             }
         }
     }
