@@ -1,0 +1,164 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tastybook-db-init
+data:
+  init.sql: |
+    CREATE DATABASE IF NOT EXISTS tastybook_db;
+    USE tastybook_db;
+
+    CREATE TABLE IF NOT EXISTS users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      full_name VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL UNIQUE,
+      password VARCHAR(255) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS recipes (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      description TEXT NOT NULL,
+      prep_time INT DEFAULT 0,
+      cook_time INT DEFAULT 0,
+      servings INT DEFAULT 0,
+      category VARCHAR(100) NOT NULL,
+      img_url TEXT,
+      instructions TEXT NOT NULL,
+      ingredients TEXT NOT NULL,
+      nutrition_calories VARCHAR(50),
+      nutrition_protein VARCHAR(50),
+      nutrition_carbs VARCHAR(50),
+      nutrition_fat VARCHAR(50),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tastybook-db-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tastybook-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tastybook-db
+  template:
+    metadata:
+      labels:
+        app: tastybook-db
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_DATABASE
+              value: tastybook_db
+            - name: MYSQL_USER
+              value: tastybook_user
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tastybook-db-secret
+                  key: DB_PASSWORD
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tastybook-db-secret
+                  key: DB_ROOT_PASSWORD
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 400Mi
+              cpu: 500m
+          volumeMounts:
+            - name: mysql-data
+              mountPath: /var/lib/mysql
+            - name: db-init
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: mysql-data
+          persistentVolumeClaim:
+            claimName: tastybook-db-pvc
+        - name: db-init
+          configMap:
+            name: tastybook-db-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tastybook-db
+spec:
+  selector:
+    app: tastybook-db
+  ports:
+    - port: 3306
+      targetPort: 3306
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tastybook-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tastybook-web
+  template:
+    metadata:
+      labels:
+        app: tastybook-web
+    spec:
+      containers:
+        - name: web
+          image: tastybook-web:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 80
+          env:
+            - name: DB_HOST
+              value: tastybook-db
+            - name: DB_NAME
+              value: tastybook_db
+            - name: DB_USER
+              value: tastybook_user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tastybook-db-secret
+                  key: DB_PASSWORD
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 50m
+            limits:
+              memory: 128Mi
+              cpu: 300m
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tastybook-web
+spec:
+  type: NodePort
+  selector:
+    app: tastybook-web
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080
